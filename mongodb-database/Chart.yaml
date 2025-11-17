@@ -1,0 +1,16 @@
+apiVersion: v2
+name: mongodb-database
+description: Chart de Helm para desplegar MongoDB con soporte para replica sets
+type: application
+version: 1.0.0
+appVersion: "7.0.4"
+keywords:
+  - mongodb
+  - database
+  - nosql
+  - document-store
+home: https://www.mongodb.com
+sources:
+  - https://github.com/mongodb/mongo
+maintainers:
+  - name: Database Operations Team

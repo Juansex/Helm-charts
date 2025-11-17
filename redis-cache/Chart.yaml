@@ -1,0 +1,17 @@
+apiVersion: v2
+name: redis-cache
+description: Chart de Helm para desplegar Redis como sistema de cache
+type: application
+version: 1.0.0
+appVersion: "7.2.3"
+keywords:
+  - redis
+  - cache
+  - database
+  - nosql
+  - key-value
+home: https://redis.io
+sources:
+  - https://github.com/redis/redis
+maintainers:
+  - name: Infrastructure Team
