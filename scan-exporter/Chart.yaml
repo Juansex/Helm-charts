@@ -1,0 +1,14 @@
+apiVersion: v2
+name: scan-exporter
+description: A Helm chart to deploy scan-exporter in Kubernetes
+type: application
+version: 2.3.0
+appVersion: "v2.3.0"
+home: https://github.com/devops-works/scan-exporter
+sources:
+  - https://github.com/devops-works/scan-exporter
+maintainers:
+- name: devopsworks
+  email: support@devops.works
+- name: ezekiel
+  email: hugo@devops.works
