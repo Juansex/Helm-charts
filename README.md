@@ -2,7 +2,7 @@
 
 Un Helm chart profesional para desplegar **Scan-Exporter** en Kubernetes. Este proyecto implementa una arquitectura limpia enfocada en monitoreo proactivo de infraestructura mediante sondeos de disponibilidad y escaneo de puertos.
 
-## Visión General
+## Descripción General
 
 Scan-Exporter es una herramienta de monitoreo que valida la disponibilidad y accesibilidad de servicios a través de:
 
@@ -11,9 +11,27 @@ Scan-Exporter es una herramienta de monitoreo que valida la disponibilidad y acc
 - Exportación de métricas en formato Prometheus
 - Alertas automáticas basadas en reglas Prometheus
 
+## Requisitos Previos
+
+Antes de desplegar, verifica que tienes:
+
+```bash
+# Helm 3.x
+helm version
+
+# Acceso a cluster Kubernetes
+kubectl cluster-info
+
+# Acceso para crear deployments
+kubectl auth can-i create deployments --namespace default
+
+# (Opcional) Prometheus Operator para alertas automáticas
+kubectl get crd prometheusrules.monitoring.coreos.com
+```
+
 ## Arquitectura
 
-El diseño sigue principios de Clean Architecture:
+El diseño sigue principios de Clean Architecture en 3 capas:
 
 ```
 Capa de Configuración
@@ -31,43 +49,9 @@ Capa de Observabilidad
 └── Métricas expuestas en puerto 2112
 ```
 
-### Componentes Principales
+Para entender profundamente el diseño, consulta **ARQUITECTURA.md**.
 
-#### 1. **Deployment (deployment.yaml)**
-- Ejecuta la imagen `devopsworks/scan-exporter:2.3.0`
-- Monta configuración desde ConfigMap en `/etc/scan-exporter`
-- Expone métricas en puerto 2112
-- Liveness probe verifica `/health` cada 3 segundos
-
-#### 2. **ConfigMap (config-map.yaml)**
-- Define targets a escanear con políticas específicas
-- Establece timeout y límites de puertos
-- Configura intervalos y rangos de puertos por target
-
-#### 3. **PodMonitor (pod-monitor.yaml)**
-- Integración automática con Prometheus Operator
-- Scrape interval: 10 segundos
-- Endpoint: `/metrics`
-
-#### 4. **PrometheusRules (rules.yaml)**
-- Alertas sobre targets inaccesibles (ICMP)
-- Advertencias sobre puertos inesperados
-- Severidades configurables (high/critical)
-
-## Guía de Despliegue
-
-### Requisitos Previos
-
-```bash
-# Helm 3.x
-helm version
-
-# Acceso a cluster Kubernetes
-kubectl cluster-info
-
-# Prometheus Operator (opcional, recomendado)
-kubectl get crd prometheusrules.monitoring.coreos.com
-```
+## Guía de Despliegue - Paso a Paso
 
 ### Paso 1: Clonar el Repositorio
 
@@ -76,7 +60,13 @@ git clone https://github.com/Juansex/Helm-charts.git
 cd Helm-charts/scan-exporter
 ```
 
-### Paso 2: Configurar Targets
+### Paso 2: Crear Namespace
+
+```bash
+kubectl create namespace monitoring
+```
+
+### Paso 3: Configurar Targets
 
 Editar `values.yaml` e indicar los targets a monitorear:
 
@@ -100,12 +90,9 @@ targets: |-
 - `registered`: Puertos 1024-49151
 - `all`: Todos los puertos 0-65535
 
-### Paso 3: Desplegar el Chart
+### Paso 4: Desplegar el Chart
 
 ```bash
-# Namespace específico
-kubectl create namespace monitoring
-
 # Instalación básica
 helm install scan-exporter . -n monitoring
 
@@ -122,7 +109,7 @@ helm install scan-exporter . \
   --set alertRules.namespace=monitoring
 ```
 
-### Paso 4: Verificar Despliegue
+### Paso 5: Verificar Despliegue
 
 ```bash
 # Estado del deployment
@@ -139,58 +126,71 @@ kubectl port-forward -n monitoring svc/scan-exporter 2112:2112
 curl http://localhost:2112/health
 ```
 
-### Paso 5: Acceder a Métricas
+### Paso 6: Acceder a Métricas
 
 ```bash
 # Port-forward para Prometheus
 kubectl port-forward -n monitoring svc/scan-exporter 2112:2112
 
-# Consultar en navegador
+# Consultar métricas
 curl http://localhost:2112/metrics
 ```
 
-## Configuración Avanzada
+## Ejemplos de Uso
 
-### Habilitar PodMonitor
-
-Para integración automática con Prometheus Operator:
+### Despliegue Básico Mínimo
 
 ```bash
-helm upgrade scan-exporter . \
-  -n monitoring \
-  --set podMonitor.enabled=true \
-  --set podMonitor.path=/metrics
+# Crear namespace
+kubectl create namespace monitoring
+
+# Desplegar chart
+helm install scan-exporter . -n monitoring
+
+# Verificar
+kubectl get pods -n monitoring
+kubectl logs -n monitoring -l app=scan-exporter
 ```
 
-### Configurar Alertas
+### Monitoreo de Infraestructura Crítica
 
-```bash
-helm upgrade scan-exporter . \
-  -n monitoring \
-  --set alertRules.enabled=true \
-  --set alertRules.namespace=monitoring
+Validar servidores críticos (DB, Cache, API) con puertos esperados:
+
+```yaml
+targets: |-
+  timeout: 2
+  limit: 1024
+  targets:
+    # Base de datos PostgreSQL
+    - name: "postgres-primary"
+      ip: "10.0.1.10"
+      tcp:
+        period: "10s"
+        range: "reserved"
+        expected: "5432"
+      icmp:
+        period: "20s"
+    
+    # Redis Cache
+    - name: "redis-cluster"
+      ip: "10.0.2.10"
+      tcp:
+        period: "10s"
+        range: "registered"
+        expected: "6379,6380,6381"
+      icmp:
+        period: "20s"
+    
+    # API Gateway
+    - name: "api-gateway"
+      ip: "10.0.3.10"
+      tcp:
+        period: "5s"
+        range: "reserved"
+        expected: "80,443"
+      icmp:
+        period: "10s"
 ```
-
-Las alertas predefinidas son:
-
-| Alerta | Severidad | Condición |
-|--------|-----------|-----------|
-| ICMPNotResponding | high | Target no responde ping |
-| TooManyOpenPorts | high | Puertos abiertos inesperados |
-| TooManyClosedPorts | critical | Puertos cerrados inesperados |
-
-### Personalizar Recursos
-
-```bash
-helm install scan-exporter . \
-  -n monitoring \
-  --set scanexporter.resources.requests.memory=200Mi \
-  --set scanexporter.resources.requests.cpu=300m \
-  --set scanexporter.resources.limits.memory=300Mi \
-  --set scanexporter.resources.limits.cpu=500m
-```
-
-## Ejemplos de Configuración
 
 ### Monitoreo Multi-Tier
 
@@ -228,7 +228,7 @@ targets: |-
         expected: "8300,8301,8302,8500"
 ```
 
-### Configuración de Alta Disponibilidad
+### Alta Disponibilidad
 
 ```bash
 helm install scan-exporter . \
@@ -237,6 +237,56 @@ helm install scan-exporter . \
   --set podAntiAffinity=required \
   --set podMonitor.enabled=true \
   --set alertRules.enabled=true
+```
+
+## Configuración Avanzada
+
+### Habilitar Prometheus Integration
+
+Para integración automática con Prometheus Operator:
+
+```bash
+helm upgrade scan-exporter . \
+  -n monitoring \
+  --set podMonitor.enabled=true \
+  --set alertRules.enabled=true \
+  --set alertRules.namespace=monitoring
+```
+
+Las alertas predefinidas son:
+
+| Alerta | Severidad | Condición |
+|--------|-----------|-----------|
+| ICMPNotResponding | high | Target no responde ping |
+| TooManyOpenPorts | high | Puertos abiertos inesperados |
+| TooManyClosedPorts | critical | Puertos cerrados inesperados |
+
+### Personalizar Recursos
+
+```bash
+helm install scan-exporter . \
+  -n monitoring \
+  --set scanexporter.resources.requests.memory=200Mi \
+  --set scanexporter.resources.requests.cpu=300m \
+  --set scanexporter.resources.limits.memory=300Mi \
+  --set scanexporter.resources.limits.cpu=500m
+```
+
+### Actualizar Configuración
+
+```bash
+# Editar valores
+helm upgrade scan-exporter . \
+  -n monitoring \
+  -f updated-values.yaml
+```
+
+### Cambiar Versión de Image
+
+```bash
+helm upgrade scan-exporter . \
+  -n monitoring \
+  --set scanexporter.container.image=devopsworks/scan-exporter:2.4.0
 ```
 
 ## Métricas Exportadas
@@ -255,31 +305,6 @@ scanexporter_unexpected_open_ports_total{job="app1",name="app1"} 0
 # HELP scanexporter_unexpected_closed_ports_total Puertos cerrados no esperados
 # TYPE scanexporter_unexpected_closed_ports_total gauge
 scanexporter_unexpected_closed_ports_total{job="app1",name="app1"} 0
-```
-
-## Gestión del Ciclo de Vida
-
-### Actualizar Configuración
-
-```bash
-# Editar valores
-helm upgrade scan-exporter . \
-  -n monitoring \
-  -f updated-values.yaml
-```
-
-### Cambiar Versión
-
-```bash
-helm upgrade scan-exporter . \
-  -n monitoring \
-  --set scanexporter.container.image=devopsworks/scan-exporter:2.4.0
-```
-
-### Desinstalar
-
-```bash
-helm uninstall scan-exporter -n monitoring
 ```
 
 ## Troubleshooting
@@ -313,6 +338,12 @@ kubectl get prometheusrule -n monitoring
 
 # Probar expresión PromQL en Prometheus
 # En la UI de Prometheus: scanexporter_rtt_total == 0
+```
+
+## Desinstalar
+
+```bash
+helm uninstall scan-exporter -n monitoring
 ```
 
 ## Referencias
